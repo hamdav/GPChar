@@ -1,5 +1,6 @@
 from gpchar import GPChar
 import pdb
+import asyncio
 
 from dash import Dash, dcc, html, Input, Output, callback, ALL
 import plotly.graph_objects as go
@@ -7,10 +8,13 @@ import plotly.graph_objects as go
 import numpy as np
 import matplotlib.pyplot as plt
 
-def f(x, a, b):
+async def f(x, a, b):
+    print("Running f", x)
+    await asyncio.sleep(1)
     m = np.array([
         [np.cos(a)*np.cos(b), np.sin(a)*np.cos(b), np.cos(b)],
         [-np.sin(a)*np.cos(b), np.sin(a)*np.cos(b), -np.cos(b)]])
+    print("Run done ", x)
     return np.dot(m, np.sin(2*x)) + 100
 
 def plt_version():
@@ -112,12 +116,12 @@ def dash_version():
 
     app.run(debug=True)
 
-def dash_2d_version():
-    #pdb.set_trace()
+async def dash_2d_version():
     bounds = [(0,1), (2,4), (-np.pi, np.pi)]
     inputs = ["x0", "x1", "x2"]
     outputs = ["y0", "y1"]
     gpc = GPChar(f, bounds, 3, 2, keyword_args={"a": 1, "b": 2})
+    await gpc.aquire_random_evaluations(20)
 
     sliders = [
         dcc.Slider(
@@ -165,7 +169,7 @@ def dash_2d_version():
     )
 
 
-    @callback(
+    @app.callback(
         Output('mean-contour', 'figure'),
         Input('input1-dropdown', 'value'),
         Input('input2-dropdown', 'value'),
@@ -197,7 +201,7 @@ def dash_2d_version():
 
         return fig
 
-    @callback(
+    @app.callback(
         Output('std-contour', 'figure'),
         Input('input1-dropdown', 'value'),
         Input('input2-dropdown', 'value'),
@@ -231,5 +235,5 @@ def dash_2d_version():
     app.run(debug=True)
 
 if __name__ == '__main__':
-    dash_2d_version()
+    asyncio.run(dash_2d_version())
     #dash_version()

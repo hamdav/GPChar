@@ -1,4 +1,5 @@
 from typing import Callable
+import asyncio
 
 import numpy as np
 import sklearn.gaussian_process as sgp
@@ -51,8 +52,8 @@ class GPChar:
         self.keyword_args = keyword_args if keyword_args is not None else dict()
 
         if previous_evaluation_values is None and previous_evaluation_points is None:
-            self.evaluation_points = self.get_random_uniform_points(n_initial_samples)
-            self.evaluation_values = np.array([f(point, **self.keyword_args) for point in self.evaluation_points])
+            self.evaluation_points = np.empty((0,n_features))
+            self.evaluation_values = np.empty((0,n_targets))
 
         elif ((previous_evaluation_values is None and previous_evaluation_points is not None) or
               (previous_evaluation_values is not None and previous_evaluation_points is None)):
@@ -74,11 +75,16 @@ class GPChar:
 
         # Should I normalize y?
         self.gpr = sgp.GaussianProcessRegressor(kernel=kernel, normalize_y=True)
-        self.gpr.fit(self.evaluation_points, self.evaluation_values)
-        print(self.evaluation_points)
 
         # TODO: something to say which variance should be used to decide what point(s)
         # are the most uncertian
+
+    async def aquire_random_evaluations(self, n: int):
+
+        for point in self.get_random_uniform_points(n):
+            new_value = await self.f(point, **self.keyword_args)
+            self.evaluation_points = np.vstack((self.evaluation_points, point))
+            self.evaluation_values = np.vstack((self.evaluation_values, new_value))
 
     def get_random_uniform_points(self, n: int) -> np.ndarray[float]:
         """
@@ -97,7 +103,7 @@ class GPChar:
         prediction, std = self.gpr.predict(x, return_std=True)
         return std
 
-    def acquire_new_evaluation(self):
+    async def acquire_new_evaluation(self):
         """
         finds new point to evaluate function at in order to maximize gained information
         and evaluates function there, adding the data to the evaluation_points and 
@@ -105,8 +111,9 @@ class GPChar:
         """
         # Minimize acquisition function (variance?)
         res = sciopt.minimize(self.acquisition_function, self.get_random_uniform_points(1)[0], bounds=self.bounds)
-        self.evaluation_points = np.vstack(self.evaluation_points, res.x)
-        self.evaluation_values = np.vstack(self.evaluation_values, f(res.x, **self.keyword_args))
+        new_value = await self.f(res.x, **self.keyword_args)
+        self.evaluation_points = np.vstack((self.evaluation_points, res.x))
+        self.evaluation_values = np.vstack((self.evaluation_values, new_value))
         self.gpr.fit(self.evaluation_points, self.evaluation_values)
 
     def get_1d_prediction(self, dimension: int, point: np.ndarray[float]) -> np.ndarray[float]:

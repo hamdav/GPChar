@@ -132,8 +132,8 @@ class GPChar:
         return points
 
     def acquisition_function(self, x):
-        prediction, std = self.gpr.predict(x, return_std=True)
-        return std
+        prediction, std = self.gpr.predict([x], return_std=True)
+        return std[0][0]
 
     def acquire_new_evaluations(self, n: int):
         """

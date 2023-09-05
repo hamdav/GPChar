@@ -1,4 +1,3 @@
-from gpchar import GPChar
 
 import pdb
 import time
@@ -22,14 +21,18 @@ def f(x, a, b):
 def launch_dash_app(gpc, bounds, input_names, output_names):
 
     sliders = [
-        dcc.Slider(
-            b[0],
-            b[1],
-            step=(b[1]-b[0])/100,
-            value=(b[1]+b[0])/2,
-            marks={x: f"{x:.3g}" for x in np.arange(b[0], b[1], (b[1]-b[0])/10)},
-            id={"type": 'slider', "index":i}
-        )
+        html.Div([
+            input_names[i],
+            dcc.Slider(
+                b[0],
+                b[1],
+                step=(b[1]-b[0])/100,
+                value=(b[1]+b[0])/2,
+                # Marks don't work if it is a float of an integer value... Very stupid... https://github.com/plotly/dash-core-components/issues/159
+                marks={x+((b[1]-b[0])/10000 if x < (b[0]+b[1])/2 else -(b[1]-b[0])/10000): f"{x:.3g}" for x in np.arange(b[0], b[1], (b[1]-b[0])/10)},
+                id={"type": 'slider', "index":i},
+            )
+        ])
         for i, b in enumerate(bounds)
     ]
 
@@ -37,23 +40,26 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
 
     app.layout = html.Div([
         html.Div([
+            "Input 1: ",
             dcc.Dropdown(
                 input_names,
-                'x0',
+                input_names[0],
                 id='input1-dropdown',
                 #style={'float': 'left','margin': 'auto'}
                 style={'width': '20%', 'display': 'inline-block'},
             ),
+            "Input 2: ",
             dcc.Dropdown(
                 input_names,
-                'x1',
+                input_names[1],
                 id='input2-dropdown',
                 #style={'float': 'left','margin': 'auto'}
                 style={'width': '20%', 'display': 'inline-block'},
             ),
+            "Output: ",
             dcc.Dropdown(
                 output_names,
-                'y0',
+                output_names[0],
                 id='output-dropdown',
                 #style={'float': 'right','margin': 'auto'}
                 style={'width': '20%', 'display': 'inline-block'},
@@ -190,6 +196,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
     app.run(debug=True,use_reloader=False)
 
 if __name__ == '__main__':
+    from gpchar import GPChar
     bounds = [(0,1), (2,4), (-np.pi, np.pi)]
     inputs = ["x0", "x1", "x2"]
     outputs = ["y0", "y1"]

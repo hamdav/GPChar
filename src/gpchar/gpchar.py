@@ -22,7 +22,6 @@ class GPChar:
         n_features: int,
         n_targets: int,
         save_file: str,
-        n_initial_samples: int = 20,
         keyword_args: dict = None,
     ):
         """
@@ -51,8 +50,6 @@ class GPChar:
         self.n_features = n_features
         self.n_targets = n_targets
         self.keyword_args = keyword_args if keyword_args is not None else dict()
-        self.gpr_lock = threading.Lock()
-        self.evaulation_lists_lock = threading.Lock()
         self.lock = threading.Lock()
         self.save_file = save_file
 
@@ -71,7 +68,7 @@ class GPChar:
         length_scale_bounds = [((b[1]-b[0])/100, (b[1]-b[0])*10) for b in bounds]
         kernel = (
             1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
-            #+ WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-10, 1e1)
+            + WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-10, 1e1))
         )
 
 
@@ -133,7 +130,7 @@ class GPChar:
 
     def acquisition_function(self, x):
         prediction, std = self.gpr.predict([x], return_std=True)
-        return std[0][0]
+        return -std[0][0]
 
     def acquire_new_evaluations(self, n: int):
         """

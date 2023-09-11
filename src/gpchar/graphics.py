@@ -1,13 +1,16 @@
-
 import pdb
 import time
 import threading
 
 from dash import Dash, dcc, html, Input, Output, callback, ALL
 import plotly.graph_objects as go
+import plotly.express as px
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+def make_color_transparent(col, transparency=0.3):
+    return 'rgba' + col[3:-1]  + ', ' + str(transparency) + ')'
 
 
 def launch_dash_app(gpc, bounds, input_names, output_names):
@@ -33,7 +36,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
 
     app.layout = html.Div([
         # Dropdowns for input and output dimensions
-        html.Div([
+        html.Div(children = [
             "Input 1: ",
             dcc.Dropdown(
                 input_names,
@@ -48,15 +51,15 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                 id='input2-dropdown',
                 style={'width': '20%', 'display': 'inline-block'},
             ),
-            "Output: ",
+            "Output(s):  ",
             dcc.Dropdown(
                 output_names,
                 output_names[0],
+                multi=True,
                 id='output-dropdown',
-                #style={'float': 'right','margin': 'auto'}
-                style={'width': '20%', 'display': 'inline-block'},
+                style={'width': '50%', 'display': 'inline-block'},
             )
-        ]),
+        ], style=dict(display='flex')),
         # Graphs
         dcc.Graph(id='1d-graph',
                   style={'width': '33%', 'display': 'inline-block'}),
@@ -78,54 +81,80 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
         Input('output-dropdown', 'value'),
         Input({"type": "slider", "index": ALL}, "value")
     )
-    def update_figures(x1_dim, x2_dim, y_dim, values):
+    def update_figures(x1_dim, x2_dim, y_dims, values):
+
+        # If only one option is selected, dash gives me a string with the option
+        # otherwise, dash gives me a list. This just avoids duplicating code
+        # and makes it always a list
+        if isinstance(y_dims, str):
+            y_dims = [y_dims]
+
+        main_y_dim = y_dims[0]
+
         # Update the 1D graph
         xs, ys, stds = gpc.get_1d_prediction(input_names.index(x1_dim), np.array(values))
-        y = ys[:,output_names.index(y_dim)] if len(ys.shape)==2 else ys
-        std = stds[:,output_names.index(y_dim)] if len(stds.shape)==2 else stds
 
-        oned_fig = go.Figure([
-            go.Scatter(
-                name='Mean',
-                x=xs,
-                y=y,
-                mode='lines',
-                line=dict(color='rgb(31, 119, 180)'),
-                showlegend=False
-            ),
-            go.Scatter(
-                name='Upper Bound',
-                x=xs,
-                y=y+std,
-                mode='lines',
-                marker=dict(color="#444"),
-                line=dict(width=0),
-                showlegend=False
-            ),
-            go.Scatter(
-                name='Lower Bound',
-                x=xs,
-                y=y-std,
-                marker=dict(color="#444"),
-                line=dict(width=0),
-                mode='lines',
-                fillcolor='rgba(68, 68, 68, 0.3)',
-                fill='tonexty',
-                showlegend=False
+        # Made these up, with inspiration from matplotlib, but I like red first...
+        colors = [
+            "rgb(255,120,14)",
+            "rgb(22,120,220)",
+            "rgb(30,200,30)",
+            "rgb(222,44,44)",
+            "rgb(120,85,77)",
+            "rgb(222,100,230)",
+            "rgb(180,180,180)",
+            "rgb(222,222,33)",
+            "rgb(27,222,233)",
+        ]
+        scatterplots = []
+        for i, y_dim in enumerate(y_dims):
+            y = ys[:,output_names.index(y_dim)] if len(ys.shape)==2 else ys
+            std = stds[:,output_names.index(y_dim)] if len(stds.shape)==2 else stds
+            scatterplots.append(
+                go.Scatter(
+                    name=y_dim,
+                    x=xs,
+                    y=y,
+                    mode='lines',
+                    line=dict(color=colors[i]),
+                )
             )
-        ])
+            scatterplots.append(
+                go.Scatter(
+                    name='Upper Bound',
+                    x=xs,
+                    y=y+std,
+                    mode='lines',
+                    line=dict(width=0),
+                    showlegend=False
+                )
+            )
+            scatterplots.append(
+                go.Scatter(
+                    name='Lower Bound',
+                    x=xs,
+                    y=y-std,
+                    line=dict(width=0),
+                    mode='lines',
+                    fillcolor=make_color_transparent(colors[i]),
+                    fill='tonexty',
+                    showlegend=False
+                )
+            )
+
+        oned_fig = go.Figure(scatterplots)
 
         oned_fig.update_layout(
             transition_duration=100,
             xaxis_title=x1_dim,
-            yaxis_title=y_dim
+            yaxis_title=main_y_dim
         )
 
 
         # Update the 2D contour plots
         x1s, x2s, ys, stds = gpc.get_2d_prediction(input_names.index(x1_dim), input_names.index(x2_dim), np.array(values))
-        y = ys[:,output_names.index(y_dim)] if len(ys.shape)==2 else ys
-        std = stds[:,output_names.index(y_dim)] if len(stds.shape)==2 else stds
+        y = ys[:,output_names.index(main_y_dim)] if len(ys.shape)==2 else ys
+        std = stds[:,output_names.index(main_y_dim)] if len(stds.shape)==2 else stds
 
         mean_zs = np.reshape(y, (100,100))
         std_zs = np.reshape(std, (100,100))
@@ -137,7 +166,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                 y=x2s,
                 z=mean_zs,
                 colorbar=dict(
-                    title=y_dim,
+                    title=main_y_dim,
                     titleside='right',
                     titlefont=dict(
                         size=14,
@@ -166,7 +195,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                 y=x2s,
                 z=std_zs,
                 colorbar=dict(
-                    title=y_dim + " uncertainty",
+                    title=main_y_dim + " uncertainty",
                     titleside='right',
                     titlefont=dict(
                         size=14,

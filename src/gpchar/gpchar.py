@@ -7,7 +7,7 @@ import numpy as np
 import sklearn.gaussian_process as sgp
 import plotly.graph_objects as go
 import scipy.optimize as sciopt
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel, ConstantKernel
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel, Matern
 
 
 class GPChar:
@@ -59,25 +59,26 @@ class GPChar:
             except FileNotFoundError:
                 pass
 
-        # Initialize GP
-        length_scale = [(b[1] - b[0])/10 for b in bounds]
+
+        length_scale = [(b[1] - b[0])/5 for b in bounds]
         length_scale_bounds = [((b[1]-b[0])/100, (b[1]-b[0])*100) for b in bounds]
         kernel = (
-            ConstantKernel(constant_value=1, constant_value_bounds=(1e-5, 1e5))
-            * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
-            + WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-10, 1))
+            1.0 * Matern(length_scale=length_scale, length_scale_bounds=length_scale_bounds, nu=1.5)
+            + WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-15, 1e1))
         )
 
 
-        # Should I normalize y?
-        self.gpr = sgp.GaussianProcessRegressor(
-            kernel=kernel,
-            normalize_y=True,
-            n_targets=n_targets,
-            n_restarts_optimizer=0,
-        )
+        self.gpr_list = [
+            sgp.GaussianProcessRegressor(
+                kernel=kernel,
+                normalize_y=True,
+            )
+            for _ in range(n_targets)
+        ]
+
         if self.evaluation_points.size > 0:
-            self.gpr.fit(self.evaluation_points, self.evaluation_values)
+            for i, gpr in enumerate(self.gpr_list):
+                gpr.fit(self.evaluation_points, self.evaluation_values[:,i])
 
         # TODO: something to say which variance should be used to decide what point(s)
         # are the most uncertian
@@ -134,7 +135,9 @@ class GPChar:
                 np.savetxt(f, [np.concatenate((point,new_value))],
                            delimiter=",")
 
-            self.gpr.fit(self.evaluation_points, self.evaluation_values)
+            for i, gpr in self.gpr_list:
+                gpr.fit(self.evaluation_points, self.evaluation_values[:,i])
+
             self.lock.release()
 
     def get_random_uniform_points(self, n: int) -> np.ndarray[float]:
@@ -151,8 +154,8 @@ class GPChar:
         return points
 
     def acquisition_function(self, x):
-        prediction, std = self.gpr.predict([x], return_std=True)
-        return -std[0][0]
+        prediction, std = self.gpr_list[0].predict([x], return_std=True)
+        return -float(std)
 
     def acquire_new_evaluations(self, n: int):
         """
@@ -180,7 +183,8 @@ class GPChar:
                 np.savetxt(f, [np.concatenate((res.x,new_value))],
                            delimiter=",")
 
-            self.gpr.fit(self.evaluation_points, self.evaluation_values)
+            for i, gpr in self.gpr_list:
+                gpr.fit(self.evaluation_points, self.evaluation_values[:,i])
             self.lock.release()
 
     def get_1d_prediction(self, dimension: int, point: np.ndarray[float]) -> np.ndarray[float]:
@@ -203,7 +207,14 @@ class GPChar:
         points[:,dimension] = xs
 
         self.lock.acquire()
-        ys, stds = self.gpr.predict(points, return_std=True)
+        ys = []
+        stds = []
+        for gpr in self.gpr_list:
+            y, std = gpr.predict(points, return_std=True)
+            ys.append(y)
+            stds.append(std)
+        ys = np.column_stack(ys)
+        stds = np.column_stack(stds)
         self.lock.release()
         return xs, ys, stds
 
@@ -234,6 +245,13 @@ class GPChar:
         points[:,dimension2] = np.repeat(x2s, n1)
 
         self.lock.acquire()
-        ys, stds = self.gpr.predict(points, return_std=True)
+        ys = []
+        stds = []
+        for gpr in self.gpr_list:
+            y, std = gpr.predict(points, return_std=True)
+            ys.append(y)
+            stds.append(std)
+        ys = np.column_stack(ys)
+        stds = np.column_stack(stds)
         self.lock.release()
         return x1s, x2s, ys, stds

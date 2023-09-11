@@ -81,11 +81,14 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
     def update_figures(x1_dim, x2_dim, y_dim, values):
         # Update the 1D graph
         xs, ys, stds = gpc.get_1d_prediction(input_names.index(x1_dim), np.array(values))
+        y = ys[:,output_names.index(y_dim)] if len(ys.shape)==2 else ys
+        std = stds[:,output_names.index(y_dim)] if len(stds.shape)==2 else stds
+
         oned_fig = go.Figure([
             go.Scatter(
                 name='Mean',
                 x=xs,
-                y=ys[:,output_names.index(y_dim)],
+                y=y,
                 mode='lines',
                 line=dict(color='rgb(31, 119, 180)'),
                 showlegend=False
@@ -93,7 +96,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
             go.Scatter(
                 name='Upper Bound',
                 x=xs,
-                y=ys[:,output_names.index(y_dim)] + stds[:,output_names.index(y_dim)],
+                y=y+std,
                 mode='lines',
                 marker=dict(color="#444"),
                 line=dict(width=0),
@@ -102,7 +105,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
             go.Scatter(
                 name='Lower Bound',
                 x=xs,
-                y=ys[:,output_names.index(y_dim)] - stds[:,output_names.index(y_dim)],
+                y=y-std,
                 marker=dict(color="#444"),
                 line=dict(width=0),
                 mode='lines',
@@ -121,8 +124,11 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
 
         # Update the 2D contour plots
         x1s, x2s, ys, stds = gpc.get_2d_prediction(input_names.index(x1_dim), input_names.index(x2_dim), np.array(values))
-        mean_zs = np.reshape(ys[:,output_names.index(y_dim)], (100,100))
-        std_zs = np.reshape(stds[:,output_names.index(y_dim)], (100,100))
+        y = ys[:,output_names.index(y_dim)] if len(ys.shape)==2 else ys
+        std = stds[:,output_names.index(y_dim)] if len(stds.shape)==2 else stds
+
+        mean_zs = np.reshape(y, (100,100))
+        std_zs = np.reshape(std, (100,100))
 
         mean_fig = go.Figure([
             go.Contour(

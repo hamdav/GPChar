@@ -9,17 +9,10 @@ import plotly.graph_objects as go
 import numpy as np
 import matplotlib.pyplot as plt
 
-def f(x, a, b):
-    print("Running f", x)
-    time.sleep(10)
-    m = np.array([
-        [np.cos(a)*np.cos(b), np.sin(a)*np.cos(b), np.cos(b)],
-        [-np.sin(a)*np.cos(b), np.sin(a)*np.cos(b), -np.cos(b)]])
-    print("Run done ", x)
-    return np.dot(m, np.sin(2*x)) + 100
 
 def launch_dash_app(gpc, bounds, input_names, output_names):
 
+    # Create sliders for each input dimension
     sliders = [
         html.Div([
             input_names[i],
@@ -39,13 +32,13 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
     app = Dash(__name__)
 
     app.layout = html.Div([
+        # Dropdowns for input and output dimensions
         html.Div([
             "Input 1: ",
             dcc.Dropdown(
                 input_names,
                 input_names[0],
                 id='input1-dropdown',
-                #style={'float': 'left','margin': 'auto'}
                 style={'width': '20%', 'display': 'inline-block'},
             ),
             "Input 2: ",
@@ -53,7 +46,6 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                 input_names,
                 input_names[1],
                 id='input2-dropdown',
-                #style={'float': 'left','margin': 'auto'}
                 style={'width': '20%', 'display': 'inline-block'},
             ),
             "Output: ",
@@ -65,6 +57,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                 style={'width': '20%', 'display': 'inline-block'},
             )
         ]),
+        # Graphs
         dcc.Graph(id='1d-graph',
                   style={'width': '33%', 'display': 'inline-block'}),
         dcc.Graph(id='mean-contour',
@@ -75,6 +68,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
     )
 
 
+    # Whenever a slider or dropdown changes, call this function
     @app.callback(
         Output('1d-graph', 'figure'),
         Output('mean-contour', 'figure'),
@@ -85,8 +79,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
         Input({"type": "slider", "index": ALL}, "value")
     )
     def update_figures(x1_dim, x2_dim, y_dim, values):
-        #pdb.set_trace()
-        #breakpoint()
+        # Update the 1D graph
         xs, ys, stds = gpc.get_1d_prediction(input_names.index(x1_dim), np.array(values))
         oned_fig = go.Figure([
             go.Scatter(
@@ -126,6 +119,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
         )
 
 
+        # Update the 2D contour plots
         x1s, x2s, ys, stds = gpc.get_2d_prediction(input_names.index(x1_dim), input_names.index(x2_dim), np.array(values))
         mean_zs = np.reshape(ys[:,output_names.index(y_dim)], (100,100))
         std_zs = np.reshape(stds[:,output_names.index(y_dim)], (100,100))
@@ -197,9 +191,18 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
 
 if __name__ == '__main__':
     from gpchar import GPChar
+
+    def f(x, a, b):
+        print("Running f", x)
+        time.sleep(10)
+        m = np.array([
+            [np.cos(a)*np.cos(b), np.sin(a)*np.cos(b), np.cos(b)],
+            [-np.sin(a)*np.cos(b), np.sin(a)*np.cos(b), -np.cos(b)]])
+        print("Run done ", x)
+        return np.dot(m, np.sin(2*x)) + 100
+
     bounds = [(0,1), (2,4), (-np.pi, np.pi)]
     inputs = ["x0", "x1", "x2"]
     outputs = ["y0", "y1"]
     gpc = GPChar(f, bounds, 3, 2, "data.csv", keyword_args={"a": 1, "b": 2})
     launch_dash_app(gpc, bounds, inputs, outputs)
-    #dash_version()

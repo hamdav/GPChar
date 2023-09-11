@@ -7,7 +7,7 @@ import numpy as np
 import sklearn.gaussian_process as sgp
 import plotly.graph_objects as go
 import scipy.optimize as sciopt
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+from sklearn.gaussian_process.kernels import RBF, WhiteKernel, ConstantKernel
 
 
 class GPChar:
@@ -31,44 +31,41 @@ class GPChar:
             f (Callable): function to be characterized
             bounds (list[tuple]): bounds for the input values as list of (lo, hi)
                 tuples
-            input_dim_names (list[str]): Names for the input dimensions. Used as axis
-                labels
-            output_dim_names (list[str]): Names for the output dimensions. Used as axis
-                labels
-            n_initial_samples (int): if previous evaluation points are provided,
-                this has no effect. Otherwise, this many points are randomly sampled
-                before a GP is fit to the data.
-            previous_evaluation_points (np.ndarray[float]): points where f has
-                been evaluated previously. Defaults to None.
-            previous_evaluation_values (np.ndarray[float]): corresponding values
-                of f. Defaults to None.
+            n_features (int): Number of features, i.e. number of dimensions of the input to f
+            n_targets (int): Number of targets, i.e. number of dimensions of the output from f
+            save_file (str): filename of file to save data in. If there is already data in this
+                file, that is used to initialize the model and new data is appended.
             keyword_args (dict): Keyword arguments to be sent to f. Defaults to None.
         """
 
+        # Initialize class variables
         self.f = f
         self.bounds = bounds
         self.n_features = n_features
         self.n_targets = n_targets
         self.keyword_args = keyword_args if keyword_args is not None else dict()
-        self.lock = threading.Lock()
         self.save_file = save_file
-
         self.evaluation_points = np.empty((0,n_features))
         self.evaluation_values = np.empty((0,n_targets))
+        self.lock = threading.Lock()
 
+        # Load data from save file if there is one
         if save_file is not None:
-            previous_evaluations = np.genfromtxt(save_file, delimiter=",")
-            if previous_evaluations.size > 0:
-                self.evaluation_points = previous_evaluations[:,:n_features]
-                self.evaluation_values = previous_evaluations[:,n_features:]
+            try:
+                previous_evaluations = np.genfromtxt(save_file, delimiter=",")
+                if previous_evaluations.size > 0:
+                    self.evaluation_points = previous_evaluations[:,:n_features]
+                    self.evaluation_values = previous_evaluations[:,n_features:]
+            except FileNotFoundError:
+                pass
 
-        # TODO: use matern kernel
-        # if i use a noise model as well I need some scale on the f
-        length_scale = [(b[1] - b[0])/5 for b in bounds]
-        length_scale_bounds = [((b[1]-b[0])/100, (b[1]-b[0])*10) for b in bounds]
+        # Initialize GP
+        length_scale = [(b[1] - b[0])/10 for b in bounds]
+        length_scale_bounds = [((b[1]-b[0])/100, (b[1]-b[0])*100) for b in bounds]
         kernel = (
-            1.0 * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
-            + WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-10, 1e1))
+            ConstantKernel(constant_value=1, constant_value_bounds=(1e-5, 1e5))
+            * RBF(length_scale=length_scale, length_scale_bounds=length_scale_bounds)
+            + WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-10, 1))
         )
 
 
@@ -76,7 +73,8 @@ class GPChar:
         self.gpr = sgp.GaussianProcessRegressor(
             kernel=kernel,
             normalize_y=True,
-            n_targets=n_targets
+            n_targets=n_targets,
+            n_restarts_optimizer=0,
         )
         if self.evaluation_points.size > 0:
             self.gpr.fit(self.evaluation_points, self.evaluation_values)
@@ -85,6 +83,15 @@ class GPChar:
         # are the most uncertian
 
     def acquire_random_evaluations_in_thread(self, n: int) -> threading.Thread:
+        """ Acquires function evaluations in a separate thread at randomly generated
+        points within bounds.
+
+        Args:
+            n (int): number of randomly generated points to evaluate f at
+
+        Returns:
+            thread (threading.Thread): Thread running the evaluations.
+        """
         thread = threading.Thread(
             target=self.acquire_random_evaluations,
             args=(n,)
@@ -93,6 +100,15 @@ class GPChar:
         return thread
 
     def acquire_evaluations_in_thread(self, n: int) -> threading.Thread:
+        """ Acquires function evaluations in a separate thread at points
+        where the GP is most uncertain.
+
+        Args:
+            n (int): number of points to evaluate f at
+
+        Returns:
+            thread (threading.Thread): Thread running the evaluations.
+        """
         thread = threading.Thread(
             target=self.acquire_new_evaluations,
             args=(n,)
@@ -102,6 +118,12 @@ class GPChar:
     
 
     def acquire_random_evaluations(self, n: int):
+        """ Acquires function evaluations at randomly generated
+        points within bounds. Is thread safe.
+
+        Args:
+            n (int): number of randomly generated points to evaluate f at
+        """
 
         for point in self.get_random_uniform_points(n):
             new_value = self.f(point, **self.keyword_args)
@@ -136,7 +158,10 @@ class GPChar:
         """
         finds new point to evaluate function at in order to maximize gained information
         and evaluates function there, adding the data to the evaluation_points and 
-        evaluation_values arrays
+        evaluation_values arrays. Is thread safe.
+
+        Args:
+            n (int): Number of evaluations to perform
         """
         for _ in range(n):
             # Minimize acquisition function (variance?)

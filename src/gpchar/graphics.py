@@ -8,12 +8,21 @@ import plotly.express as px
 
 import numpy as np
 import matplotlib.pyplot as plt
+from .gpchar import GPChar
 
 def make_color_transparent(col, transparency=0.3):
     return 'rgba' + col[3:-1]  + ', ' + str(transparency) + ')'
 
+def launch_dash_app_in_thread(gpc: GPChar, bounds: list[tuple], input_names: list[str], output_names: list[str]) -> threading.Thread:
+    thread = threading.Thread(target=launch_dash_app, args=(gpc, bounds, input_names, output_names))
+    thread.start()
+    return thread
 
-def launch_dash_app(gpc, bounds, input_names, output_names):
+def launch_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], output_names: list[str]) -> None:
+    app = create_dash_app(gpc, bounds, input_names, output_names)
+    app.run(debug=True,use_reloader=False)
+
+def create_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], output_names: list[str]) -> None:
 
     # Create sliders for each input dimension
     sliders = [
@@ -54,7 +63,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
             "Output(s):  ",
             dcc.Dropdown(
                 output_names,
-                output_names[0],
+                [output_names[0]],
                 multi=True,
                 id='output-dropdown',
                 style={'width': '50%', 'display': 'inline-block'},
@@ -82,12 +91,6 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
         Input({"type": "slider", "index": ALL}, "value")
     )
     def update_figures(x1_dim, x2_dim, y_dims, values):
-
-        # If only one option is selected, dash gives me a string with the option
-        # otherwise, dash gives me a list. This just avoids duplicating code
-        # and makes it always a list
-        if isinstance(y_dims, str):
-            y_dims = [y_dims]
 
         main_y_dim = y_dims[0]
 
@@ -125,7 +128,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                     x=xs,
                     y=y+std,
                     mode='lines',
-                    line=dict(width=0),
+                    line=dict(width=0, color=colors[i]),
                     showlegend=False
                 )
             )
@@ -134,11 +137,23 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
                     name='Lower Bound',
                     x=xs,
                     y=y-std,
-                    line=dict(width=0),
+                    line=dict(width=0, color=colors[i]),
                     mode='lines',
                     fillcolor=make_color_transparent(colors[i]),
                     fill='tonexty',
                     showlegend=False
+                )
+            )
+
+        # WARNING: Non-general code incomming... I just want to make a plot and I'm lazy, but this certainly shouldn't go into the package code
+        if x1_dim == "k" and main_y_dim[0] == 'f':
+            scatterplots.append(
+                go.Scatter(
+                    name="Cont.",
+                    x=xs,
+                    y=1/(2*np.pi) * (xs * np.pi / (1e-9*values[input_names.index("a")])) * 299792458 / 1.45,
+                    line=dict(dash="dash", color="black"),
+                    mode='lines',
                 )
             )
 
@@ -222,7 +237,7 @@ def launch_dash_app(gpc, bounds, input_names, output_names):
 
         return oned_fig, mean_fig, std_fig
 
-    app.run(debug=True,use_reloader=False)
+    return app
 
 if __name__ == '__main__':
     from gpchar import GPChar

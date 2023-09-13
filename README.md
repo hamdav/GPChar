@@ -73,15 +73,10 @@ launch_dash_app(gpc, bounds, input_names, output_names)
 print("This would not print")
 
 # Launch in separate thread
-import threading
-t = threading.Thread(target=launch_dash_app,
-								     args=(gpc, bounds, input_names, output_names))
-t.start()
+launch_dash_app_in_thread(gpc, bounds, input_names, output_names)
 print("This would print")
 
 ```
-
-Some future version will have a `launch_dash_app_in_thread`
 
 ### Acquiring function evaluations
 
@@ -107,4 +102,4 @@ thread.join()
 
 ### Advanced visualization
 
-Relegated to the bottom, but if you want to write your own visualizations, you can get GP predictions with the functions `get_1d_prediction` and `get_2d_prediction` to get raw prediction + uncertainties. The plot it however you like. You can of course also use the GaussianProcessRegressor objects and use those directly if you like.
+Relegated to the bottom, but if you want to write your own visualizations, you can get GP predictions with the functions `get_1d_prediction` and `get_2d_prediction` to get raw prediction + uncertainties. The plot it however you like. You can of course also access the GaussianProcessRegressor objects and use those directly if you like. Look at the source!

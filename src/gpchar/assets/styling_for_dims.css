@@ -1,0 +1,28 @@
+.round_corners {
+	border-radius: 25px;
+	border: 2px solid #AD7321;
+	padding: 25px;
+}
+.vcenter {
+	display: flex;
+	align-items: center;
+	align-content: center;
+}
+.gapped {
+	gap: 30px;
+}
+.hcenter {
+	justify-content: center;
+}
+.variable_number {
+	color: #AD7321;
+}
+.input_dropdown {
+	width: 100px;
+}
+.output_dropdown {
+	width: 200px;
+}
+.sliderdiv {
+	width: 50%;
+}

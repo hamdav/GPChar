@@ -19,7 +19,7 @@ def test1():
     bounds = [(300, 700), (0.1, 0.4), (0.5, 1.0)]
     #breakpoint()
     gpc = GPChar(f_test, bounds, 3, 2, "testdata.csv")
-    gpc.acquire_random_evaluations(2)
+    #gpc.acquire_random_evaluations(2)
 
     launch_dash_app(gpc, bounds, input_names, output_names)
 

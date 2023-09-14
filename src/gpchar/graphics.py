@@ -9,6 +9,8 @@ import plotly.express as px
 import numpy as np
 import matplotlib.pyplot as plt
 from .gpchar import GPChar
+#from gpchar import GPChar
+from flask.helpers import get_root_path
 
 def make_color_transparent(col, transparency=0.3):
     return 'rgba' + col[3:-1]  + ', ' + str(transparency) + ')'
@@ -25,58 +27,96 @@ def launch_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], ou
 def create_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], output_names: list[str]) -> None:
 
     # Create sliders for each input dimension
+    # Each slider is a
+    # div containing a
+    #   div with dimension name and value,
+    #   and a div with the slider object
     sliders = [
-        html.Div([
-            input_names[i],
-            dcc.Slider(
-                b[0],
-                b[1],
-                step=(b[1]-b[0])/100,
-                value=(b[1]+b[0])/2,
-                # Marks don't work if it is a float of an integer value... Very stupid... https://github.com/plotly/dash-core-components/issues/159
-                marks={x+((b[1]-b[0])/10000 if x < (b[0]+b[1])/2 else -(b[1]-b[0])/10000): f"{x:.3g}" for x in np.arange(b[0], b[1], (b[1]-b[0])/10)},
-                id={"type": 'slider', "index":i},
-            )
-        ])
+        html.Div(
+            children=[
+                html.Div([
+                    html.Span(input_names[i]+": "),
+                    html.Span(
+                        f"{(b[1]+b[0])/2:.3g}",
+                        id={"type": 'slidertext', "index": i},
+                        className="variable_number",
+                    ),
+                ], style=dict(width='100px'),),
+                html.Div(
+                    children=[
+                        dcc.Slider(
+                            b[0],
+                            b[1],
+                            step=(b[1]-b[0])/100,
+                            value=(b[1]+b[0])/2,
+                            # Marks don't work if it is a float of an integer value... Very stupid... https://github.com/plotly/dash-core-components/issues/159
+                            marks={x+((b[1]-b[0])/10000 if x < (b[0]+b[1])/2 else -(b[1]-b[0])/10000): f"{x:.3g}" for x in np.arange(b[0], b[1], (b[1]-b[0])/10)},
+                            id={"type": 'slider', "index":i},
+                        )
+                    ],
+                    className="sliderdiv",
+                ),
+            ],
+            className="vcenter hcenter",
+        )
         for i, b in enumerate(bounds)
     ]
 
-    app = Dash(__name__)
+    # Create the dash app. assets_folder is where the css files are stored
+    # any files in this folder are automatically served
+    app = Dash(__name__, assets_folder="assets")
 
-    app.layout = html.Div([
-        # Dropdowns for input and output dimensions
-        html.Div(children = [
-            "Input 1: ",
-            dcc.Dropdown(
-                input_names,
-                input_names[0],
-                id='input1-dropdown',
-                style={'width': '20%', 'display': 'inline-block'},
+    app.layout = html.Div(
+        children=[
+            # Dropdowns for input and output dimensions
+            # This div has three children, each one a div
+            # containing a description text and a dropdown object
+            html.Div(
+                children = [
+                    html.Div([
+                        html.Span("Input 1: "),
+                        dcc.Dropdown(
+                            input_names,
+                            input_names[0],
+                            id='input1-dropdown',
+                            className='input_dropdown',
+                        ),
+                    ], className="vcenter"),
+                    html.Div([
+                        html.Span("Input 2: "),
+                        dcc.Dropdown(
+                            input_names,
+                            input_names[1],
+                            id='input2-dropdown',
+                            className='input_dropdown',
+                        ),
+                    ], className="vcenter"),
+                    html.Div([
+                        html.Span("Output(s):  "),
+                        dcc.Dropdown(
+                            output_names,
+                            [output_names[0]],
+                            multi=True,
+                            id='output-dropdown',
+                            className='output_dropdown',
+                        )
+                    ], className="vcenter"),
+                ],
+                className="round_corners vcenter gapped",
             ),
-            "Input 2: ",
-            dcc.Dropdown(
-                input_names,
-                input_names[1],
-                id='input2-dropdown',
-                style={'width': '20%', 'display': 'inline-block'},
-            ),
-            "Output(s):  ",
-            dcc.Dropdown(
-                output_names,
-                [output_names[0]],
-                multi=True,
-                id='output-dropdown',
-                style={'width': '50%', 'display': 'inline-block'},
+            # Graphs
+            dcc.Graph(id='1d-graph',
+                      style={'width': '33%', 'display': 'inline-block'}),
+            dcc.Graph(id='mean-contour',
+                      style={'width': '33%', 'display': 'inline-block'}),
+            dcc.Graph(id='std-contour',
+                      style={'width': '33%', 'display': 'inline-block'}),
+            # Sliders
+            html.Div(
+                children=sliders,
+                className="round_corners",
             )
-        ], style=dict(display='flex')),
-        # Graphs
-        dcc.Graph(id='1d-graph',
-                  style={'width': '33%', 'display': 'inline-block'}),
-        dcc.Graph(id='mean-contour',
-                  style={'width': '33%', 'display': 'inline-block'}),
-        dcc.Graph(id='std-contour',
-                  style={'width': '33%', 'display': 'inline-block'}),
-    ] + sliders
+        ]
     )
 
 
@@ -85,6 +125,7 @@ def create_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], ou
         Output('1d-graph', 'figure'),
         Output('mean-contour', 'figure'),
         Output('std-contour', 'figure'),
+        Output({"type": "slidertext", "index": ALL}, "children"),
         Input('input1-dropdown', 'value'),
         Input('input2-dropdown', 'value'),
         Input('output-dropdown', 'value'),
@@ -235,7 +276,10 @@ def create_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], ou
             yaxis_title=x2_dim
         )
 
-        return oned_fig, mean_fig, std_fig
+        # Update the texts for the dimension sliders
+        slidertexts = [f"{x:.3g}" for x in values]
+
+        return oned_fig, mean_fig, std_fig, slidertexts
 
     return app
 

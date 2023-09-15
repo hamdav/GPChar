@@ -135,7 +135,7 @@ class GPChar:
                 np.savetxt(f, [np.concatenate((point,new_value))],
                            delimiter=",")
 
-            for i, gpr in self.gpr_list:
+            for i, gpr in enumerate(self.gpr_list):
                 gpr.fit(self.evaluation_points, self.evaluation_values[:,i])
 
             self.lock.release()
@@ -183,7 +183,7 @@ class GPChar:
                 np.savetxt(f, [np.concatenate((res.x,new_value))],
                            delimiter=",")
 
-            for i, gpr in self.gpr_list:
+            for i, gpr in enumerate(self.gpr_list):
                 gpr.fit(self.evaluation_points, self.evaluation_values[:,i])
             self.lock.release()
 

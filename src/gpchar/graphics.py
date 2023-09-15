@@ -208,73 +208,77 @@ def create_dash_app(gpc: GPChar, bounds: list[tuple], input_names: list[str], ou
 
 
         # Update the 2D contour plots
-        x1s, x2s, ys, stds = gpc.get_2d_prediction(input_names.index(x1_dim), input_names.index(x2_dim), np.array(values))
-        y = ys[:,output_names.index(main_y_dim)] if len(ys.shape)==2 else ys
-        std = stds[:,output_names.index(main_y_dim)] if len(stds.shape)==2 else stds
+        if x2_dim is not None:
+            x1s, x2s, ys, stds = gpc.get_2d_prediction(input_names.index(x1_dim), input_names.index(x2_dim), np.array(values))
+            y = ys[:,output_names.index(main_y_dim)] if len(ys.shape)==2 else ys
+            std = stds[:,output_names.index(main_y_dim)] if len(stds.shape)==2 else stds
 
-        mean_zs = np.reshape(y, (100,100))
-        std_zs = np.reshape(std, (100,100))
+            mean_zs = np.reshape(y, (100,100))
+            std_zs = np.reshape(std, (100,100))
 
-        mean_fig = go.Figure([
-            go.Contour(
-                name='Mean',
-                x=x1s,
-                y=x2s,
-                z=mean_zs,
-                colorbar=dict(
-                    title=main_y_dim,
-                    titleside='right',
-                    titlefont=dict(
-                        size=14,
-                        family='Arial, sans-serif')
+            mean_fig = go.Figure([
+                go.Contour(
+                    name='Mean',
+                    x=x1s,
+                    y=x2s,
+                    z=mean_zs,
+                    colorbar=dict(
+                        title=main_y_dim,
+                        titleside='right',
+                        titlefont=dict(
+                            size=14,
+                            family='Arial, sans-serif')
+                    ),
+                    line=dict(width=0),
+                    ncontours=20,
                 ),
-                line=dict(width=0),
-                ncontours=20,
-            ),
-            go.Scatter(
-                name='1d-marker-line',
-                x=x1s,
-                y=np.full(x1s.shape, values[input_names.index(x2_dim)]),
+                go.Scatter(
+                    name='1d-marker-line',
+                    x=x1s,
+                    y=np.full(x1s.shape, values[input_names.index(x2_dim)]),
+                )
+            ])
+
+            mean_fig.update_layout(
+                transition_duration=100,
+                xaxis_title=x1_dim,
+                yaxis_title=x2_dim
             )
-        ])
 
-        mean_fig.update_layout(
-            transition_duration=100,
-            xaxis_title=x1_dim,
-            yaxis_title=x2_dim
-        )
-
-        std_fig = go.Figure([
-            go.Contour(
-                name='Uncertainty',
-                x=x1s,
-                y=x2s,
-                z=std_zs,
-                colorbar=dict(
-                    title=main_y_dim + " uncertainty",
-                    titleside='right',
-                    titlefont=dict(
-                        size=14,
-                        family='Arial, sans-serif')
+            std_fig = go.Figure([
+                go.Contour(
+                    name='Uncertainty',
+                    x=x1s,
+                    y=x2s,
+                    z=std_zs,
+                    colorbar=dict(
+                        title=main_y_dim + " uncertainty",
+                        titleside='right',
+                        titlefont=dict(
+                            size=14,
+                            family='Arial, sans-serif')
+                    ),
+                    colorscale='Reds',
+                    line=dict(width=0),
+                    zmin=0,
+                    zmax=np.max(std_zs),
+                    ncontours=20,
                 ),
-                colorscale='Reds',
-                line=dict(width=0),
-                zmin=0,
-                zmax=np.max(std_zs),
-                ncontours=20,
-            ),
-            go.Scatter(
-                name='1d-marker-line',
-                x=x1s,
-                y=np.full(x1s.shape, values[input_names.index(x2_dim)]),
-            )
-        ])
+                go.Scatter(
+                    name='1d-marker-line',
+                    x=x1s,
+                    y=np.full(x1s.shape, values[input_names.index(x2_dim)]),
+                )
+            ])
 
-        std_fig.update_layout(
-            transition_duration=100,
-            xaxis_title=x1_dim,
-            yaxis_title=x2_dim
-        )
+            std_fig.update_layout(
+                transition_duration=100,
+                xaxis_title=x1_dim,
+                yaxis_title=x2_dim
+            )
+        else:
+            mean_fig = go.Figure()
+            std_fig = go.Figure()
 
         # Update the texts for the dimension sliders
         slidertexts = [f"{x:.3g}" for x in values]

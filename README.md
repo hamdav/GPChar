@@ -1,5 +1,27 @@
 # User guide
 
+## Purpose
+
+### The problem
+The problem this program is trying to solve is to investigate how some quantity depends on a number of other quantities, where the number of evaluations is limited. It might be limited because one evaluation takes a long time to do, either because it's a heavy calculation, or because it involves a human preforming some measurement in the real world; or it might be limited simply because you have gotten some data already and cannot get more. In both of these cases you would like to get the best possible approximation of the true relationship between the quantities, and also an estimate of the uncertainty in your approximation. In the case where you can acquire more data, you would also like to do this at the points that will get you the most information, so that you don't waste evaluations at points where you already know the outcome. Additionally, once a good approximation of the relationship is obtained, you would want some way of visualizing this which isn't trivial when you have more than 2 input quantities. Summarizing, we want something that can:
+- approximate the relationship between n inputs and m outputs from a limited number of datapoints, and give the uncertainty of it's estimation,
+- visualize this relationship in a useful manner, and
+- suggest what combination of input values that should be evaulated next to maximize gained information.
+
+#### Example
+
+One example could be to investigate how the eigenfrequency of a photonic crystal unit cell depends on the geometric parameters like width, length and hole radii, as well as wavevector. Since each evaluation takes around a minute, and the parameter space is 5 dimensional, it is important to choose the sampling points carefully and extract as much information as possible from each point.
+
+### The solution
+
+Just like the problem, the solution comes in three parts.
+- To approximate the relationship, a Gaussian Process Regressor is used.
+- To visualize the relationship, a web app with sliders for each dimension is used.
+- To obtain the point where new data should be taken, check where the uncertainty of the Gaussian Process Regressor is.
+
+TODO: Add screenshots.
+
+
 ## Installation
 
 - Clone the repo
@@ -73,7 +95,7 @@ launch_dash_app(gpc, bounds, input_names, output_names)
 print("This would not print")
 
 # Launch in separate thread
-launch_dash_app_in_thread(gpc, bounds, input_names, output_names)
+app_thread = launch_dash_app_in_thread(gpc, bounds, input_names, output_names)
 print("This would print")
 
 ```
@@ -103,3 +125,18 @@ thread.join()
 ### Advanced visualization
 
 Relegated to the bottom, but if you want to write your own visualizations, you can get GP predictions with the functions `get_1d_prediction` and `get_2d_prediction` to get raw prediction + uncertainties. The plot it however you like. You can of course also access the GaussianProcessRegressor objects and use those directly if you like. Look at the source!
+
+# Tips & Tricks
+
+## Reuse data!
+
+While using this script, I found that I first guessed that I wanted to investigate data in the range of
+- a: 300nm to 700nm
+- w: 1000nm to 1500nm
+- r1 and r2: 0.1 to 0.4
+- k: 0.5 to 1.0
+
+But then I realized that I probably wanted to check what was happening at larger w, up to 2000nm, aswell. Since the data that I had already taken was not invalidated by this, any datapoints there are still useful, I just cancelled the computation (remember that all of the datapoints are stored in a file) and restarted with new bounds. 
+
+Moreover, I later realized that I wanted to see how an additional parameter h (the thickness of the cell, so far fixed to 220 nm) influenced the frequency, and also that unit cells with a > 500 were bad so I didn't want to investigate them further. To do this, I went into the file with the datapoints and added a column between r2 and k and set the value to 220 nm for all of the datapoints and voila, when I rerun the GPChar it will start sampeling points of different h, but it will still have learnt all of the things about the other dimensions at h=220nm, so it isn't starting from 0. In fact, with only very few additional datapoints, it got a very good approximation for how h affects the frequency for *all* of the different combinations of values for the other dimensions. Note also that there was no need to remove the points where a > 500, even though I set the bounds to be 300nm to 500nm now, the GP might as well learn from those datapoints as well, I just didn't want it to waste time gathering more evaluations there.
+
